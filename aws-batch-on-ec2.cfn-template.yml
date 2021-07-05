@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS Batch on EC2
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aws-batch-on-ec2-service
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBatchServiceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - batch.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aws-batch-on-ec2-instance
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: aws-batch-on-ec2
+      Roles:
+        - !Ref InstanceRole
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aws-batch-on-ec2
+      GroupDescription: aws-batch-on-ec2
+      VpcId: !Ref VpcId
+  ComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: aws-batch-on-ec2
+      Type: MANAGED
+      ServiceRole: !Sub ${ServiceRole.Arn}
+      ComputeResources:
+        Type: EC2
+        InstanceTypes:
+          - optimal
+        MinvCpus: 0
+        MaxvCpus: 256
+        InstanceRole: !Sub ${InstanceProfile.Arn}
+        Subnets: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Sub ${SecurityGroup.GroupId}
+  JobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: aws-batch-on-ec2
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+  JobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: aws-batch-on-ec2
+      Type: container
+      PlatformCapabilities:
+        - EC2
+      ContainerProperties:
+        Image: busybox
+        ResourceRequirements:
+          - Type: VCPU
+            Value: 1
+          - Type: MEMORY
+            Value: 2048
+        Command:
+          - echo
+          - Hello world

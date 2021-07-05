@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS Batch on Fargate
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+Resources:
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aws-batch-on-fargate-service
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBatchServiceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - batch.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aws-batch-on-fargate-execution
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aws-batch-on-fargate
+      GroupDescription: aws-batch-on-fargate
+      VpcId: !Ref VpcId
+  ComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: aws-batch-on-fargate
+      Type: MANAGED
+      ServiceRole: !Sub ${ServiceRole.Arn}
+      ComputeResources:
+        Type: FARGATE
+        MaxvCpus: 256
+        Subnets: !Ref SubnetIds
+        SecurityGroupIds:
+          - !Sub ${SecurityGroup.GroupId}
+  JobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: aws-batch-on-fargate
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+  JobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: aws-batch-on-fargate
+      Type: container
+      PlatformCapabilities:
+        - FARGATE
+      ContainerProperties:
+        Image: busybox
+        ExecutionRoleArn: !Sub ${ExecutionRole.Arn}
+        ResourceRequirements:
+          - Type: VCPU
+            Value: 1
+          - Type: MEMORY
+            Value: 2048
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        Command:
+          - echo
+          - Hello world
