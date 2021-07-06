@@ -79,6 +79,8 @@ Resources:
       Type: container
       PlatformCapabilities:
         - EC2
+      Parameters:
+        Message: Hello world
       ContainerProperties:
         Image: busybox
         ResourceRequirements:
@@ -88,4 +90,4 @@ Resources:
             Value: 2048
         Command:
           - echo
-          - Hello world
+          - Ref::Message
